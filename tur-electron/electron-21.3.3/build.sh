@@ -312,21 +312,6 @@ termux_step_make_install() {
 	# Install LICENSE file
 	mkdir -p $TERMUX_PREFIX/share/doc/electron
 	cp out/Release/LICENSE{,S.chromium.html} $TERMUX_PREFIX/share/doc/electron
-
-	# Except the deb file, we also create a zip file like electron release
-	local _TARGET_CPU="$TERMUX_ARCH"
-	if [ "$TERMUX_ARCH" = "aarch64" ]; then
-		_TARGET_CPU="arm64"
-	elif [ "$TERMUX_ARCH" = "x86_64" ]; then
-		_TARGET_CPU="x64"
-	elif [ "$TERMUX_ARCH" = "arm" ]; then
-		_TARGET_CPU="armv7l"
-	fi
-	mkdir -p $TERMUX_SCRIPTDIR/output-electron
-
-	pushd $TERMUX_PREFIX/lib/electron
-	zip -r $TERMUX_SCRIPTDIR/output-electron/electron-v$TERMUX_PKG_VERSION-linux-$_TARGET_CPU.zip ./*
-	popd
 }
 
 termux_step_post_make_install() {
@@ -343,4 +328,22 @@ termux_step_post_make_install() {
 		fi
 	done
 	unset _arch
+}
+
+termux_step_post_massage() {
+	# Except the deb file, we also create a zip file like electron release
+	local _TARGET_CPU="$TERMUX_ARCH"
+	if [ "$TERMUX_ARCH" = "aarch64" ]; then
+		_TARGET_CPU="arm64"
+	elif [ "$TERMUX_ARCH" = "x86_64" ]; then
+		_TARGET_CPU="x64"
+	elif [ "$TERMUX_ARCH" = "arm" ]; then
+		_TARGET_CPU="armv7l"
+	fi
+
+	mkdir -p $TERMUX_SCRIPTDIR/output-electron
+
+	pushd $TERMUX_PREFIX/lib/electron
+	zip -r $TERMUX_SCRIPTDIR/output-electron/electron-v$TERMUX_PKG_VERSION-linux-$_TARGET_CPU.zip ./*
+	popd
 }
