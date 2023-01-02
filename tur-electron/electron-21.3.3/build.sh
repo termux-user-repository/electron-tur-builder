@@ -3,7 +3,7 @@ TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML,
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
 TERMUX_PKG_VERSION=21.3.3
-TERMUX_PKG_SRCURL=https://github.com/electron/electron.git
+TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="atk, cups, dbus, fontconfig, freetype, gtk3, krb5, libc++, libffi, libxkbcommon, libnss, libwayland, libx11, mesa, openssl, pango, pulseaudio"
 TERMUX_PKG_BUILD_DEPENDS="libnotify"
 # Chromium doesn't support i686 on Linux.
