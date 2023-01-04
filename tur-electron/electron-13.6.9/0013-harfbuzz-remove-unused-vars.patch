@@ -38,11 +38,3 @@ index df322f8451c..35dae7b1f11 100644
        }
      }
      supp_codes.fini ();
-@@ -639,7 +639,6 @@
- 	  if (!subr_subsetter.encode_localsubrs (fd, subset_localsubrs[fd]))
- 	    return false;
- 	}
--	supp_size += SuppEncoding::static_size * supp_codes.length;
-       }
-     }
- 
