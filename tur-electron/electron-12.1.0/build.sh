@@ -5,7 +5,7 @@ TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
 _CHROMIUM_VERSION=89.0.4389.128
 TERMUX_PKG_VERSION=12.1.0
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
-TERMUX_PKG_DEPENDS="atk, cups, dbus, fontconfig, freetype, gtk3, krb5, libc++, libffi, libxkbcommon, libnss, libwayland, libx11, mesa, openssl, pango, pulseaudio"
+TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify"
 
 termux_step_get_source() {
