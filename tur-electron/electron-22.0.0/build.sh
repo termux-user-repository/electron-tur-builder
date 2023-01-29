@@ -297,3 +297,21 @@ termux_step_post_make_install() {
 	# Remove the dummy files
 	rm $TERMUX_PREFIX/lib/lib{{pthread,resolv,ffi_pic}.a,rt.so}
 }
+
+termux_step_post_massage() {
+	# Except the deb file, we also create a zip file like electron release
+	local _TARGET_CPU="$TERMUX_ARCH"
+	if [ "$TERMUX_ARCH" = "aarch64" ]; then
+		_TARGET_CPU="arm64"
+	elif [ "$TERMUX_ARCH" = "x86_64" ]; then
+		_TARGET_CPU="x64"
+	elif [ "$TERMUX_ARCH" = "arm" ]; then
+		_TARGET_CPU="armv7l"
+	fi
+
+	mkdir -p $TERMUX_SCRIPTDIR/output-electron
+
+	pushd $TERMUX_PREFIX/opt/electron-$TERMUX_PKG_VERSION
+	zip -r $TERMUX_SCRIPTDIR/output-electron/electron-v$TERMUX_PKG_VERSION-linux-$_TARGET_CPU.zip ./*
+	popd
+}
