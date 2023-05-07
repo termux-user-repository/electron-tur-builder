@@ -47,7 +47,9 @@ cp -rn ./termux-packages/* ./
 cp -rn ./tur-repo/* ./
 
 # Pop changes
-git stash pop
+if [ "$(git stash list)" != "" ]; then
+	git stash pop
+fi
 
 # Apply script patches
 shopt -s nullglob
