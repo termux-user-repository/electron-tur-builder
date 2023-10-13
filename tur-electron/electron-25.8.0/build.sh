@@ -4,6 +4,7 @@ TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
 _CHROMIUM_VERSION=114.0.5735.289
 TERMUX_PKG_VERSION=25.8.0
+TERMUX_PKG_REVISION=1
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
@@ -79,8 +80,9 @@ termux_step_configure() {
 	export PATH="$TERMUX_PKG_TMPDIR/host-pkg-config-bin:$PATH"
 
 	env -i PATH="$PATH" sudo apt update
-	env -i PATH="$PATH" sudo apt install libdrm-dev libjpeg-turbo8-dev libpng-dev fontconfig libfontconfig-dev libfontconfig1-dev libfreetype6-dev zlib1g-dev libcups2-dev libxkbcommon-dev libglib2.0-dev -yq
-	env -i PATH="$PATH" sudo apt install libdrm-dev:i386 libjpeg-turbo8-dev:i386 libpng-dev:i386 libfontconfig-dev:i386 libfontconfig1-dev:i386 libfreetype6-dev:i386 zlib1g-dev:i386 libcups2-dev:i386 libglib2.0-dev:i386 libxkbcommon-dev:i386 -yq
+	env -i PATH="$PATH" sudo apt install lsb-release -yq
+	env -i PATH="$PATH" sudo apt install libfontconfig1 libffi7 libfontconfig1:i386 libffi7:i386 -yq
+	env -i PATH="$PATH" sudo ./build/install-build-deps.sh --lib32 --no-syms --no-android --no-arm --no-chromeos-fonts --no-nacl --no-prompt
 
 	# Install amd64 rootfs if necessary, it should have been installed by source hooks.
 	build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
@@ -127,8 +129,11 @@ termux_step_configure() {
 	popd
 
 	# Construct args
-	local _target_cpu _v8_current_cpu _v8_sysroot_path
-	local _v8_toolchain_name _target_sysroot="$TERMUX_PKG_TMPDIR/sysroot"
+	local _clang_base_path="/usr/lib/llvm-15"
+	local _host_cc="$_clang_base_path/bin/clang"
+	local _host_cxx="$_clang_base_path/bin/clang++"
+	local _target_cpu _target_sysroot="$TERMUX_PKG_TMPDIR/sysroot"
+	local _v8_toolchain_name _v8_current_cpu _v8_sysroot_path
 	if [ "$TERMUX_ARCH" = "aarch64" ]; then
 		_target_cpu="arm64"
 		_v8_current_cpu="x64"
@@ -159,7 +164,7 @@ use_sysroot = false
 target_cpu = \"$_target_cpu\"
 target_rpath = \"$TERMUX_PREFIX/lib\"
 target_sysroot = \"$_target_sysroot\"
-clang_base_path = \"$TERMUX_STANDALONE_TOOLCHAIN\"
+clang_base_path = \"$_clang_base_path\"
 custom_toolchain = \"//build/toolchain/linux/unbundle:default\"
 host_toolchain = \"$TERMUX_PKG_CACHEDIR/custom-toolchain:host\"
 v8_snapshot_toolchain = \"$TERMUX_PKG_CACHEDIR/custom-toolchain:$_v8_toolchain_name\"
@@ -169,13 +174,13 @@ chrome_pgo_phase = 0
 treat_warnings_as_errors = false
 # Use system libraries as little as possible
 use_bundled_fontconfig = false
-use_system_freetype = true
+use_system_freetype = false
 use_system_libdrm = true
 use_custom_libcxx = false
 use_allocator_shim = false
 use_partition_alloc_as_malloc = false
 enable_backup_ref_ptr_support = false
-enable_mte_checked_ptr_support = false
+enable_pointer_compression_support = false
 use_nss_certs = true
 use_udev = false
 use_gnome_keyring = false
@@ -195,7 +200,6 @@ use_vaapi_x11 = false
 # See comments on Chromium package
 enable_nacl = false
 use_thin_lto=false
-use_v8_context_snapshot = false
 " >> $_common_args_file
 
 	if [ "$TERMUX_ARCH" = "arm" ]; then
@@ -206,18 +210,18 @@ use_v8_context_snapshot = false
 	# Use custom toolchain
 	mkdir -p $TERMUX_PKG_CACHEDIR/custom-toolchain
 	cp -f $TERMUX_PKG_BUILDER_DIR/toolchain.gn.in $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@HOST_CC@|$(command -v clang-15)|g
-			s|@HOST_CXX@|$(command -v clang++-15)|g
-			s|@HOST_LD@|$(command -v clang++-15)|g
+	sed -i "s|@HOST_CC@|$_host_cc|g
+			s|@HOST_CXX@|$_host_cxx|g
+			s|@HOST_LD@|$_host_cxx|g
 			s|@HOST_AR@|$(command -v llvm-ar)|g
 			s|@HOST_NM@|$(command -v llvm-nm)|g
 			s|@HOST_IS_CLANG@|true|g
 			s|@HOST_USE_GOLD@|false|g
 			s|@HOST_SYSROOT@|$_amd64_sysroot_path|g
 			" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@V8_CC@|$(command -v clang-15)|g
-			s|@V8_CXX@|$(command -v clang++-15)|g
-			s|@V8_LD@|$(command -v clang++-15)|g
+	sed -i "s|@V8_CC@|$_host_cc|g
+			s|@V8_CXX@|$_host_cxx|g
+			s|@V8_LD@|$_host_cxx|g
 			s|@V8_AR@|$(command -v llvm-ar)|g
 			s|@V8_NM@|$(command -v llvm-nm)|g
 			s|@V8_TOOLCHAIN_NAME@|$_v8_toolchain_name|g
@@ -235,7 +239,7 @@ use_v8_context_snapshot = false
 
 termux_step_make() {
 	cd $TERMUX_PKG_BUILDDIR
-	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron electron_license chromium_licenses || bash
+	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron electron_license chromium_licenses -k 0 || bash
 }
 
 termux_step_make_install() {
@@ -258,6 +262,7 @@ termux_step_make_install() {
 
 		# V8 Snapshot data
 		snapshot_blob.bin
+		v8_context_snapshot.bin
 
 		# ICU Data
 		icudtl.dat
