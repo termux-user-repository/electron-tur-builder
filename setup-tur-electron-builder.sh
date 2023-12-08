@@ -61,5 +61,8 @@ done
 unset _patch
 shopt -u nullglob
 
+# Remove override packages
+cat ./common-files/override-packages.txt | xargs rm -rfv --
+
 # Remove files
 rm -f build-package.sh.orig
