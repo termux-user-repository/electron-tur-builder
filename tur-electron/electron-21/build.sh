@@ -86,7 +86,7 @@ termux_step_configure() {
 	env -i PATH="$PATH" sudo apt update
 	env -i PATH="$PATH" sudo apt install lsb-release -yq
 	env -i PATH="$PATH" sudo apt install libfontconfig1 libffi7 libfontconfig1:i386 libffi7:i386 -yq
-	env -i PATH="$PATH" sudo ./build/install-build-deps.sh --lib32 --no-syms --no-android --no-arm --no-chromeos-fonts --no-nacl --no-prompt
+	env -i PATH="$PATH" sudo ./build/install-build-deps.sh --lib32 --no-syms --no-arm --no-chromeos-fonts --no-nacl --no-prompt --unsupported
 
 	# Install amd64 rootfs if necessary, it should have been installed by source hooks.
 	build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
