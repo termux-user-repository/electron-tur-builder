@@ -20,6 +20,21 @@ __tur_setup_depot_tools() {
 	export CHROMIUM_BUILDTOOLS_PATH="$TERMUX_PKG_SRCDIR/buildtools"
 }
 
+_setup_nodejs_16() {
+	local NODEJS_VERSION=16.19.0
+	local NODEJS_FOLDER=${TERMUX_PKG_CACHEDIR}/build-tools/nodejs-${NODEJS_VERSION}
+
+	if [ ! -x "$NODEJS_FOLDER/bin/node" ]; then
+		mkdir -p "$NODEJS_FOLDER"
+		local NODEJS_TAR_FILE=$TERMUX_PKG_TMPDIR/nodejs-$NODEJS_VERSION.tar.xz
+		termux_download https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-linux-x64.tar.xz \
+			"$NODEJS_TAR_FILE" \
+			c88b52497ab38a3ddf526e5b46a41270320409109c3f74171b241132984fd08f
+		tar -xf "$NODEJS_TAR_FILE" -C "$NODEJS_FOLDER" --strip-components=1
+	fi
+	export PATH=$NODEJS_FOLDER/bin:$PATH
+}
+
 termux_step_get_source() {
 	# Check whether we need to get source
 	if [ -f "$TERMUX_PKG_CACHEDIR/.electron-source-fetched" ]; then
@@ -44,7 +59,7 @@ termux_step_get_source() {
 	__tur_setup_depot_tools
 
 	# Install nodejs
-	termux_setup_nodejs
+	_setup_nodejs_16
 
 	# Get source
 	rm -rf "$TERMUX_PKG_CACHEDIR/tmp-checkout"
@@ -72,7 +87,7 @@ termux_step_post_get_source() {
 termux_step_configure() {
 	cd $TERMUX_PKG_SRCDIR
 	termux_setup_ninja
-	termux_setup_nodejs
+	_setup_nodejs_16
 	__tur_setup_depot_tools
 
 	# Remove termux's dummy pkg-config
