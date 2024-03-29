@@ -3,7 +3,7 @@ TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML,
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
 _CHROMIUM_VERSION=118.0.5993.159
-TERMUX_PKG_VERSION=27.2.3
+TERMUX_PKG_VERSION=27.3.2
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
@@ -133,7 +133,7 @@ termux_step_configure() {
 	popd
 
 	# Construct args
-	local _clang_base_path="/usr/lib/llvm-15"
+	local _clang_base_path="/usr/lib/llvm-16"
 	local _host_cc="$_clang_base_path/bin/clang"
 	local _host_cxx="$_clang_base_path/bin/clang++"
 	local _target_cpu _target_sysroot="$TERMUX_PKG_TMPDIR/sysroot"
