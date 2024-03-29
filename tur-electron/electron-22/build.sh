@@ -2,8 +2,8 @@ TERMUX_PKG_HOMEPAGE=https://github.com/electron/electron
 TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML, and CSS"
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
-_CHROMIUM_VERSION=108.0.5359.179
-TERMUX_PKG_VERSION=22.1.0
+_CHROMIUM_VERSION=108.0.5359.215
+TERMUX_PKG_VERSION=22.3.5
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
@@ -25,7 +25,7 @@ termux_step_get_source() {
 				(sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" "$f" | patch -f --silent -R -p1 -d "$TERMUX_PKG_SRCDIR") || true
 			done
 			shopt -u nullglob
-			python $TERMUX_SCRIPTDIR/common-files/apply-chromium-patches.py -C "$TERMUX_PKG_SRCDIR" -R -v $_CHROMIUM_VERSION || bash
+			python $TERMUX_SCRIPTDIR/common-files/apply-chromium-patches.py --electron -C "$TERMUX_PKG_SRCDIR" -R -v $_CHROMIUM_VERSION || bash
 			return
 		fi
 	fi
@@ -61,7 +61,7 @@ termux_step_get_source() {
 
 termux_step_post_get_source() {
 	echo "$TERMUX_PKG_VERSION" > $TERMUX_PKG_SRCDIR/electron/ELECTRON_VERSION
-	python $TERMUX_SCRIPTDIR/common-files/apply-chromium-patches.py -v $_CHROMIUM_VERSION
+	python $TERMUX_SCRIPTDIR/common-files/apply-chromium-patches.py --electron -v $_CHROMIUM_VERSION
 }
 
 termux_step_configure() {
@@ -203,18 +203,18 @@ use_thin_lto=false
 	# Use custom toolchain
 	mkdir -p $TERMUX_PKG_CACHEDIR/custom-toolchain
 	cp -f $TERMUX_PKG_BUILDER_DIR/toolchain.gn.in $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@HOST_CC@|$(command -v clang-13)|g
-			s|@HOST_CXX@|$(command -v clang++-13)|g
-			s|@HOST_LD@|$(command -v clang++-13)|g
+	sed -i "s|@HOST_CC@|$(command -v clang-14)|g
+			s|@HOST_CXX@|$(command -v clang++-14)|g
+			s|@HOST_LD@|$(command -v clang++-14)|g
 			s|@HOST_AR@|$(command -v llvm-ar)|g
 			s|@HOST_NM@|$(command -v llvm-nm)|g
 			s|@HOST_IS_CLANG@|true|g
 			s|@HOST_USE_GOLD@|false|g
 			s|@HOST_SYSROOT@|$_amd64_sysroot_path|g
 			" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@V8_CC@|$(command -v clang-13)|g
-			s|@V8_CXX@|$(command -v clang++-13)|g
-			s|@V8_LD@|$(command -v clang++-13)|g
+	sed -i "s|@V8_CC@|$(command -v clang-14)|g
+			s|@V8_CXX@|$(command -v clang++-14)|g
+			s|@V8_LD@|$(command -v clang++-14)|g
 			s|@V8_AR@|$(command -v llvm-ar)|g
 			s|@V8_NM@|$(command -v llvm-nm)|g
 			s|@V8_TOOLCHAIN_NAME@|$_v8_toolchain_name|g
