@@ -14,7 +14,13 @@
   "tur-electron": {
     "name": "tur-electron",
     "distribution": "tur-packages",
-    "component": "tur-electron",
+    "component": "tur",
+    "url": "https://tur.kcubeterm.com"
+  },
+  "tur-electron-2": {
+    "name": "tur-electron-2",
+    "distribution": "tur-packages",
+    "component": "tur",
     "url": "https://tur.kcubeterm.com"
   },
   "tur-on-device": {

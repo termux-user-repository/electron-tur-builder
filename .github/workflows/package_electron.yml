@@ -22,9 +22,11 @@ on:
     - main
     paths:
     - 'tur-electron/**'
+    - 'tur-electron-2/**'
   pull_request:
     paths:
     - 'tur-electron/**'
+    - 'tur-electron-2/**'
   workflow_dispatch:
     inputs:
       packages:

@@ -9,3 +9,5 @@
 !setup-tur-electron-builder.sh
 !tur-electron
 !tur-electron/**
+!tur-electron-2
+!tur-electron-2/**
