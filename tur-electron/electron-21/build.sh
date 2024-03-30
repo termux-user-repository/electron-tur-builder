@@ -3,12 +3,37 @@ TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML,
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
 _CHROMIUM_VERSION=106.0.5249.199
-TERMUX_PKG_VERSION=21.4.0
+TERMUX_PKG_VERSION=21.4.4
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
 # Chromium doesn't support i686 on Linux.
 TERMUX_PKG_BLACKLISTED_ARCHES="i686"
+
+__tur_setup_depot_tools() {
+	export DEPOT_TOOLS_UPDATE=0
+	if [ ! -f "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched" ];then
+		git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $TERMUX_PKG_CACHEDIR/depot_tools
+		touch "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched"
+	fi
+	export PATH="$TERMUX_PKG_CACHEDIR/depot_tools:$PATH"
+	export CHROMIUM_BUILDTOOLS_PATH="$TERMUX_PKG_SRCDIR/buildtools"
+}
+
+_setup_nodejs_16() {
+	local NODEJS_VERSION=16.19.0
+	local NODEJS_FOLDER=${TERMUX_PKG_CACHEDIR}/build-tools/nodejs-${NODEJS_VERSION}
+
+	if [ ! -x "$NODEJS_FOLDER/bin/node" ]; then
+		mkdir -p "$NODEJS_FOLDER"
+		local NODEJS_TAR_FILE=$TERMUX_PKG_TMPDIR/nodejs-$NODEJS_VERSION.tar.xz
+		termux_download https://nodejs.org/dist/v${NODEJS_VERSION}/node-v${NODEJS_VERSION}-linux-x64.tar.xz \
+			"$NODEJS_TAR_FILE" \
+			c88b52497ab38a3ddf526e5b46a41270320409109c3f74171b241132984fd08f
+		tar -xf "$NODEJS_TAR_FILE" -C "$NODEJS_FOLDER" --strip-components=1
+	fi
+	export PATH=$NODEJS_FOLDER/bin:$PATH
+}
 
 termux_step_get_source() {
 	# Check whether we need to get source
@@ -31,15 +56,10 @@ termux_step_get_source() {
 	fi
 
 	# Fetch depot_tools
-	export DEPOT_TOOLS_UPDATE=0
-	if [ ! -f "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched" ];then
-		git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $TERMUX_PKG_CACHEDIR/depot_tools
-		touch "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched"
-	fi
-	export PATH="$TERMUX_PKG_CACHEDIR/depot_tools:$PATH"
+	__tur_setup_depot_tools
 
 	# Install nodejs
-	termux_setup_nodejs
+	_setup_nodejs_16
 
 	# Get source
 	rm -rf "$TERMUX_PKG_CACHEDIR/tmp-checkout"
@@ -66,9 +86,9 @@ termux_step_post_get_source() {
 
 termux_step_configure() {
 	cd $TERMUX_PKG_SRCDIR
-	termux_setup_gn
 	termux_setup_ninja
-	termux_setup_nodejs
+	_setup_nodejs_16
+	__tur_setup_depot_tools
 
 	# Remove termux's dummy pkg-config
 	local _target_pkg_config=$(command -v pkg-config)
@@ -79,8 +99,9 @@ termux_step_configure() {
 	export PATH="$TERMUX_PKG_TMPDIR/host-pkg-config-bin:$PATH"
 
 	env -i PATH="$PATH" sudo apt update
-	env -i PATH="$PATH" sudo apt install libdrm-dev libjpeg-turbo8-dev libpng-dev fontconfig libfontconfig-dev libfontconfig1-dev libfreetype6-dev zlib1g-dev libcups2-dev libxkbcommon-dev libglib2.0-dev -yq
-	env -i PATH="$PATH" sudo apt install libdrm-dev:i386 libjpeg-turbo8-dev:i386 libpng-dev:i386 libfontconfig-dev:i386 libfontconfig1-dev:i386 libfreetype6-dev:i386 zlib1g-dev:i386 libcups2-dev:i386 libglib2.0-dev:i386 libxkbcommon-dev:i386 -yq
+	env -i PATH="$PATH" sudo apt install lsb-release -yq
+	env -i PATH="$PATH" sudo apt install libfontconfig1 libffi7 libfontconfig1:i386 libffi7:i386 -yq
+	env -i PATH="$PATH" sudo ./build/install-build-deps.sh --lib32 --no-syms --no-arm --no-chromeos-fonts --no-nacl --no-prompt --unsupported
 
 	# Install amd64 rootfs if necessary, it should have been installed by source hooks.
 	build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
@@ -127,8 +148,11 @@ termux_step_configure() {
 	popd
 
 	# Construct args
-	local _target_cpu _v8_current_cpu _v8_sysroot_path
-	local _v8_toolchain_name _target_sysroot="$TERMUX_PKG_TMPDIR/sysroot"
+	local _clang_base_path="/usr/lib/llvm-16"
+	local _host_cc="$_clang_base_path/bin/clang"
+	local _host_cxx="$_clang_base_path/bin/clang++"
+	local _target_cpu _target_sysroot="$TERMUX_PKG_TMPDIR/sysroot"
+	local _v8_toolchain_name _v8_current_cpu _v8_sysroot_path
 	if [ "$TERMUX_ARCH" = "aarch64" ]; then
 		_target_cpu="arm64"
 		_v8_current_cpu="x64"
@@ -203,18 +227,18 @@ use_thin_lto=false
 	# Use custom toolchain
 	mkdir -p $TERMUX_PKG_CACHEDIR/custom-toolchain
 	cp -f $TERMUX_PKG_BUILDER_DIR/toolchain.gn.in $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@HOST_CC@|$(command -v clang-13)|g
-			s|@HOST_CXX@|$(command -v clang++-13)|g
-			s|@HOST_LD@|$(command -v clang++-13)|g
+	sed -i "s|@HOST_CC@|$_host_cc|g
+			s|@HOST_CXX@|$_host_cxx|g
+			s|@HOST_LD@|$_host_cxx|g
 			s|@HOST_AR@|$(command -v llvm-ar)|g
 			s|@HOST_NM@|$(command -v llvm-nm)|g
 			s|@HOST_IS_CLANG@|true|g
 			s|@HOST_USE_GOLD@|false|g
 			s|@HOST_SYSROOT@|$_amd64_sysroot_path|g
 			" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@V8_CC@|$(command -v clang-13)|g
-			s|@V8_CXX@|$(command -v clang++-13)|g
-			s|@V8_LD@|$(command -v clang++-13)|g
+	sed -i "s|@V8_CC@|$_host_cc|g
+			s|@V8_CXX@|$_host_cxx|g
+			s|@V8_LD@|$_host_cxx|g
 			s|@V8_AR@|$(command -v llvm-ar)|g
 			s|@V8_NM@|$(command -v llvm-nm)|g
 			s|@V8_TOOLCHAIN_NAME@|$_v8_toolchain_name|g
@@ -227,12 +251,12 @@ use_thin_lto=false
 
 	mkdir -p $TERMUX_PKG_BUILDDIR/out/Release
 	cat $_common_args_file > $TERMUX_PKG_BUILDDIR/out/Release/args.gn
-	gn gen $TERMUX_PKG_BUILDDIR/out/Release --export-compile-commands || bash
+	gn gen $TERMUX_PKG_BUILDDIR/out/Release
 }
 
 termux_step_make() {
 	cd $TERMUX_PKG_BUILDDIR
-	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron electron_license chromium_licenses || bash
+	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron electron_license chromium_licenses
 }
 
 termux_step_make_install() {
