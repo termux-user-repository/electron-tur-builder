@@ -65,7 +65,7 @@ termux_step_get_source() {
 		mkdir -p "$__electron_src_dir"
 		pushd "$__electron_src_dir"
 		gclient config --name "src/electron" --unmanaged https://github.com/electron/electron --custom-var=checkout_chromium=False --verbose
-		gclient sync --with_branch_heads --with_tags --verbose || bash
+		gclient sync --with_branch_heads --with_tags --verbose
 		popd # "$__electron_src_dir"
 		touch "$TERMUX_PKG_CACHEDIR/.electron-source-fetched"
 	fi
@@ -292,12 +292,12 @@ use_thin_lto=false
 
 	mkdir -p $TERMUX_PKG_BUILDDIR/out/Release
 	cat $_common_args_file > $TERMUX_PKG_BUILDDIR/out/Release/args.gn
-	gn gen $TERMUX_PKG_BUILDDIR/out/Release --export-compile-commands || bash
+	gn gen $TERMUX_PKG_BUILDDIR/out/Release --export-compile-commands
 }
 
 termux_step_make() {
 	cd $TERMUX_PKG_BUILDDIR
-	ninja -C $TERMUX_PKG_BUILDDIR/out/Release third_party/electron_node:headers electron electron_license chromium_licenses -k 0 || bash
+	ninja -C $TERMUX_PKG_BUILDDIR/out/Release third_party/electron_node:headers electron electron_license chromium_licenses -k 0
 }
 
 termux_step_make_install() {
