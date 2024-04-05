@@ -3,12 +3,22 @@ TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML,
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
 _CHROMIUM_VERSION=114.0.5735.289
-TERMUX_PKG_VERSION=25.9.7
+TERMUX_PKG_VERSION=25.9.8
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
 # Chromium doesn't support i686 on Linux.
 TERMUX_PKG_BLACKLISTED_ARCHES="i686"
+
+__tur_setup_depot_tools() {
+	export DEPOT_TOOLS_UPDATE=0
+	if [ ! -f "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched" ];then
+		git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $TERMUX_PKG_CACHEDIR/depot_tools
+		touch "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched"
+	fi
+	export PATH="$TERMUX_PKG_CACHEDIR/depot_tools:$PATH"
+	export CHROMIUM_BUILDTOOLS_PATH="$TERMUX_PKG_SRCDIR/buildtools"
+}
 
 termux_step_get_source() {
 	# Check whether we need to get source
@@ -31,12 +41,7 @@ termux_step_get_source() {
 	fi
 
 	# Fetch depot_tools
-	export DEPOT_TOOLS_UPDATE=0
-	if [ ! -f "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched" ];then
-		git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $TERMUX_PKG_CACHEDIR/depot_tools
-		touch "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched"
-	fi
-	export PATH="$TERMUX_PKG_CACHEDIR/depot_tools:$PATH"
+	__tur_setup_depot_tools
 
 	# Install nodejs
 	termux_setup_nodejs
@@ -66,9 +71,9 @@ termux_step_post_get_source() {
 
 termux_step_configure() {
 	cd $TERMUX_PKG_SRCDIR
-	termux_setup_gn
 	termux_setup_ninja
 	termux_setup_nodejs
+	__tur_setup_depot_tools
 
 	# Remove termux's dummy pkg-config
 	local _target_pkg_config=$(command -v pkg-config)
