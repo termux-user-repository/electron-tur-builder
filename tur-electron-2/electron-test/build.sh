@@ -2,8 +2,8 @@ TERMUX_PKG_HOMEPAGE=https://github.com/electron/electron
 TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML, and CSS"
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
 TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
-_CHROMIUM_VERSION=114.0.5735.289
-TERMUX_PKG_VERSION=25.8.0
+_CHROMIUM_VERSION=122.0.6261.156
+TERMUX_PKG_VERSION=29.3.1
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
 TERMUX_PKG_DEPENDS="electron-deps"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
@@ -34,21 +34,31 @@ __tur_chromium_sudo() {
 	env -i PATH="$PATH" sudo "$@"
 }
 
-termux_step_get_source() {
-	# Fetch depot_tools
+__tur_setup_depot_tools() {
 	export DEPOT_TOOLS_UPDATE=0
 	if [ ! -f "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched" ];then
 		git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git $TERMUX_PKG_CACHEDIR/depot_tools
 		touch "$TERMUX_PKG_CACHEDIR/.depot_tools-fetched"
 	fi
 	export PATH="$TERMUX_PKG_CACHEDIR/depot_tools:$PATH"
+	export CHROMIUM_BUILDTOOLS_PATH="$TERMUX_PKG_SRCDIR/buildtools"
+}
+
+termux_step_get_source() {
+	# Fetch depot_tools
+	__tur_setup_depot_tools
 
 	# Fetch chromium source
-	local __cr_src_dir="$HOME/chromium"
+	local __cr_src_dir="$HOME/chromium-sources/chromium"
 	if [ ! -f "$TERMUX_PKG_CACHEDIR/.chromium-source-fetched" ]; then
 		mkdir -p "$__cr_src_dir"
 		pushd "$__cr_src_dir"
-		fetch --nohooks chromium || gclient sync --nohooks
+		fetch --nohooks chromium || (
+			cd src && git reset --hard && git checkout main && git pull &&
+			_remote_main="$(git rev-parse origin/main)" && cd .. &&
+			gclient sync --nohooks --verbose --revision src@$_remote_main &&
+			gclient fetch --verbose
+		)
 		pushd src
 		gclient runhooks
 		popd # "$__cr_src_dir/src"
@@ -60,20 +70,25 @@ termux_step_get_source() {
 	termux_setup_nodejs
 
 	# Fetch electron source without checking out chromium source
-	local __electron_src_dir="$HOME/electron"
+	local __electron_src_dir="$HOME/chromium-sources/electron"
 	if [ ! -f "$TERMUX_PKG_CACHEDIR/.electron-source-fetched" ]; then
 		mkdir -p "$__electron_src_dir"
 		pushd "$__electron_src_dir"
 		gclient config --name "src/electron" --unmanaged https://github.com/electron/electron --custom-var=checkout_chromium=False --verbose
-		gclient sync --with_branch_heads --with_tags --verbose
+		gclient fetch --verbose
+		gclient sync --nohooks --with_branch_heads --with_tags --verbose
+		(cd src/electron && git reset --hard && git checkout main && git pull &&
+		_remote_main="$(git rev-parse origin/main)" && cd ../.. &&
+		gclient sync --nohooks --with_branch_heads --with_tags --verbose --revision src/electron@$_remote_main &&
+		gclient fetch --verbose)
 		popd # "$__electron_src_dir"
 		touch "$TERMUX_PKG_CACHEDIR/.electron-source-fetched"
 	fi
 
 	# Layer 1, contains the source code of given version
-	local __layer1_dir="$HOME/electron-layer-1"
-	local __layer1_delete=false
-	if [ "$__layer1_delete" = true ]; then
+	local __layer1_dir="$TERMUX_PKG_CACHEDIR/electron-layer-1"
+	local __layer1_marker_file="$TERMUX_PKG_CACHEDIR/.layer1-fetched"
+	if [ ! -f "$__layer1_marker_file" ] || [ "$(cat $__layer1_marker_file)" != "$TERMUX_PKG_VERSION" ]; then
 		if __tur_chromium_is_mountpoint "$__layer1_dir/merged" ; then
 			__tur_chromium_sudo umount "$__layer1_dir/merged"
 		fi
@@ -88,6 +103,7 @@ termux_step_get_source() {
 		gclient config --name "src/electron" --unmanaged https://github.com/electron/electron --verbose
 		gclient sync --revision v$TERMUX_PKG_VERSION --verbose
 		popd # "$__layer1_dir/merged"
+		echo "$TERMUX_PKG_VERSION" > "$__layer1_marker_file"
 	else
 		if ! __tur_chromium_is_mountpoint "$__layer1_dir/merged" ; then
 			__tur_chromium_sudo mount -t overlay -o lowerdir=$__electron_src_dir:$__cr_src_dir,upperdir=$__layer1_dir/upperdir,workdir=$__layer1_dir/workdir overlay $__layer1_dir/merged
@@ -95,7 +111,7 @@ termux_step_get_source() {
 	fi
 
 	# Layer 2, the real work dir, waiting for patches
-	local __layer2_dir="$HOME/electron-layer-2"
+	local __layer2_dir="$TERMUX_PKG_CACHEDIR/electron-layer-2"
 	if __tur_chromium_is_mountpoint "$__layer2_dir/merged" ; then
 		__tur_chromium_sudo umount "$__layer2_dir/merged"
 	fi
@@ -125,9 +141,9 @@ termux_step_post_get_source() {
 
 termux_step_configure() {
 	cd $TERMUX_PKG_SRCDIR
-	termux_setup_gn
 	termux_setup_ninja
 	termux_setup_nodejs
+	__tur_setup_depot_tools
 
 	# Remove termux's dummy pkg-config
 	local _target_pkg_config=$(command -v pkg-config)
@@ -137,18 +153,23 @@ termux_step_configure() {
 	ln -s $_host_pkg_config $TERMUX_PKG_TMPDIR/host-pkg-config-bin/pkg-config
 	export PATH="$TERMUX_PKG_TMPDIR/host-pkg-config-bin:$PATH"
 
+	# Install deps
 	env -i PATH="$PATH" sudo apt update
 	env -i PATH="$PATH" sudo apt install lsb-release -yq
 	env -i PATH="$PATH" sudo apt install libfontconfig1 libffi7 libfontconfig1:i386 libffi7:i386 -yq
 	env -i PATH="$PATH" sudo ./build/install-build-deps.sh --lib32 --no-syms --no-android --no-arm --no-chromeos-fonts --no-nacl --no-prompt
 
 	# Install amd64 rootfs if necessary, it should have been installed by source hooks.
-	build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
+	build/linux/sysroot_scripts/install-sysroot.py --sysroots-json-path=build/linux/sysroot_scripts/sysroots.json --arch=amd64
 	local _amd64_sysroot_path="$(pwd)/build/linux/$(ls build/linux | grep 'amd64-sysroot')"
+	rm -rf "$_amd64_sysroot_path"
+	build/linux/sysroot_scripts/install-sysroot.py --sysroots-json-path=build/linux/sysroot_scripts/sysroots.json --arch=amd64
 
 	# Install i386 rootfs if necessary, it should have been installed by source hooks.
-	build/linux/sysroot_scripts/install-sysroot.py --arch=i386
+	build/linux/sysroot_scripts/install-sysroot.py --sysroots-json-path=build/linux/sysroot_scripts/sysroots.json --arch=i386
 	local _i386_sysroot_path="$(pwd)/build/linux/$(ls build/linux | grep 'i386-sysroot')"
+	rm -rf "$_i386_sysroot_path"
+	build/linux/sysroot_scripts/install-sysroot.py --sysroots-json-path=build/linux/sysroot_scripts/sysroots.json --arch=i386
 
 	# Link to system tools required by the build
 	mkdir -p third_party/node/linux/node-linux-x64/bin
@@ -181,13 +202,17 @@ termux_step_configure() {
 	cp -Rf $TERMUX_PREFIX/include/* usr/include
 	cp -Rf $TERMUX_PREFIX/lib/* usr/lib
 	ln -sf /data ./data
+	# This is needed to build crashpad
+	rm -rf $TERMUX_PREFIX/include/spawn.h
 	# This is needed to build cups
 	cp -Rf $TERMUX_PREFIX/bin/cups-config usr/bin/
 	chmod +x usr/bin/cups-config
+	# Cherry-pick LWG3545 for NDK r26
+	patch -p1 < $TERMUX_SCRIPTDIR/common-files/chromium-patches/sysroot-patches/libcxx-17-lwg3545.diff
 	popd
 
 	# Construct args
-	local _clang_base_path="/usr/lib/llvm-15"
+	local _clang_base_path="/usr/lib/llvm-16"
 	local _host_cc="$_clang_base_path/bin/clang"
 	local _host_cxx="$_clang_base_path/bin/clang++"
 	local _target_cpu _target_sysroot="$TERMUX_PKG_TMPDIR/sysroot"
@@ -196,17 +221,17 @@ termux_step_configure() {
 		_target_cpu="arm64"
 		_v8_current_cpu="x64"
 		_v8_sysroot_path="$_amd64_sysroot_path"
-		_v8_toolchain_name="clang_x64_v8_arm64"
+		_v8_toolchain_name="clang_x64_v8_arm64_"
 	elif [ "$TERMUX_ARCH" = "arm" ]; then
 		_target_cpu="arm"
 		_v8_current_cpu="x86"
 		_v8_sysroot_path="$_i386_sysroot_path"
-		_v8_toolchain_name="clang_x86_v8_arm"
+		_v8_toolchain_name="clang_x86_v8_arm_"
 	elif [ "$TERMUX_ARCH" = "x86_64" ]; then
 		_target_cpu="x64"
 		_v8_current_cpu="x64"
 		_v8_sysroot_path="$_amd64_sysroot_path"
-		_v8_toolchain_name="clang_x64"
+		_v8_toolchain_name="clang_x64_"
 	fi
 
 	local _common_args_file=$TERMUX_PKG_TMPDIR/common-args-file
@@ -215,6 +240,7 @@ termux_step_configure() {
 
 	echo "
 import(\"//electron/build/args/release.gn\")
+override_electron_version = \"$TERMUX_PKG_VERSION\"
 # Do not build with symbols
 symbol_level = 0
 # Use our custom toolchain
@@ -234,6 +260,7 @@ treat_warnings_as_errors = false
 use_bundled_fontconfig = false
 use_system_freetype = false
 use_system_libdrm = true
+use_system_libffi = true
 use_custom_libcxx = false
 use_allocator_shim = false
 use_partition_alloc_as_malloc = false
@@ -241,7 +268,6 @@ enable_backup_ref_ptr_support = false
 enable_pointer_compression_support = false
 use_nss_certs = true
 use_udev = false
-use_gnome_keyring = false
 use_alsa = false
 use_libpci = false
 use_pulseaudio = true
@@ -253,11 +279,16 @@ ozone_platform_wayland = true
 ozone_platform_headless = true
 angle_enable_vulkan = true
 angle_enable_swiftshader = true
+angle_enable_abseil = false
 rtc_use_pipewire = false
-use_vaapi_x11 = false
+use_vaapi = false
 # See comments on Chromium package
 enable_nacl = false
-use_thin_lto=false
+is_cfi = false
+use_cfi_icall = false
+use_thin_lto = false
+enable_rust = false
+llvm_android_mainline = true
 " >> $_common_args_file
 
 	if [ "$TERMUX_ARCH" = "arm" ]; then
@@ -290,14 +321,20 @@ use_thin_lto=false
 			s|@V8_SYSROOT@|$_v8_sysroot_path|g
 			" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
 
+	# Cherry-pick LWG3545 for GCC
+	patch -p1 -d $_amd64_sysroot_path < $TERMUX_SCRIPTDIR/common-files/chromium-patches/sysroot-patches/libstdcxx3-10-lwg3545.diff
+	if [ "$_v8_sysroot_path" != "$_amd64_sysroot_path" ]; then
+		patch -p1 -d $_v8_sysroot_path < $TERMUX_SCRIPTDIR/common-files/chromium-patches/sysroot-patches/libstdcxx3-10-lwg3545.diff
+	fi
+
 	mkdir -p $TERMUX_PKG_BUILDDIR/out/Release
 	cat $_common_args_file > $TERMUX_PKG_BUILDDIR/out/Release/args.gn
-	gn gen $TERMUX_PKG_BUILDDIR/out/Release --export-compile-commands
+	gn gen $TERMUX_PKG_BUILDDIR/out/Release --export-compile-commands || bash
 }
 
 termux_step_make() {
 	cd $TERMUX_PKG_BUILDDIR
-	ninja -C $TERMUX_PKG_BUILDDIR/out/Release third_party/electron_node:headers electron electron_license chromium_licenses -k 0
+	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron:node_headers electron electron_license chromium_licenses -k 0 || bash
 }
 
 termux_step_make_install() {
