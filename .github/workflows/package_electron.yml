@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
@@ -229,18 +229,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -312,18 +312,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -395,18 +395,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -478,18 +478,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -561,18 +561,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -644,18 +644,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -727,18 +727,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
@@ -809,18 +809,18 @@ jobs:
       fail-fast: false
     steps:
     - name: Clone tur-electron
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1000
         path: ${{ github.workspace }}
     - name: Clone tur
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux-user-repository/tur
         fetch-depth: 1
         path: ${{ github.workspace }}/tur-repo
     - name: Clone termux-packages
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: termux/termux-packages
         fetch-depth: 1
