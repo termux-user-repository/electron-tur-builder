@@ -1,14 +1,14 @@
 TERMUX_PKG_HOMEPAGE=https://github.com/electron/electron
 TERMUX_PKG_DESCRIPTION="Build cross-platform desktop apps with JavaScript, HTML, and CSS"
 TERMUX_PKG_LICENSE="MIT, BSD 3-Clause"
-TERMUX_PKG_MAINTAINER="Chongyun Lee <uchkks@protonmail.com>"
+TERMUX_PKG_MAINTAINER="@licy183"
 _CHROMIUM_VERSION=128.0.6613.186
-TERMUX_PKG_VERSION=32.2.1
+TERMUX_PKG_VERSION=32.2.6
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
-TERMUX_PKG_DEPENDS="electron-deps"
+TERMUX_PKG_DEPENDS="atk, cups, dbus, fontconfig, gtk3, krb5, libc++, libdrm, libevdev, libxkbcommon, libminizip, libnss, libwayland, libx11, mesa, openssl, pango, pulseaudio, zlib"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
 # Chromium doesn't support i686 on Linux.
-TERMUX_PKG_BLACKLISTED_ARCHES="i686"
+TERMUX_PKG_EXCLUDED_ARCHES="i686"
 
 __tur_setup_depot_tools() {
 	export DEPOT_TOOLS_UPDATE=0
@@ -18,28 +18,10 @@ __tur_setup_depot_tools() {
 	fi
 	export PATH="$TERMUX_PKG_CACHEDIR/depot_tools:$PATH"
 	export CHROMIUM_BUILDTOOLS_PATH="$TERMUX_PKG_SRCDIR/buildtools"
+	$TERMUX_PKG_CACHEDIR/depot_tools/ensure_bootstrap
 }
 
 termux_step_get_source() {
-	# Check whether we need to get source
-	if [ -f "$TERMUX_PKG_CACHEDIR/.electron-source-fetched" ]; then
-		local _fetched_source_version=$(cat $TERMUX_PKG_CACHEDIR/.electron-source-fetched)
-		if [ "$_fetched_source_version" = "$TERMUX_PKG_VERSION" ]; then
-			echo "[INFO]: Use pre-fetched source (version $_fetched_source_version)."
-			ln -sfr $TERMUX_PKG_CACHEDIR/tmp-checkout/src $TERMUX_PKG_SRCDIR
-			# Revert patches
-			shopt -s nullglob
-			local f
-			for f in $TERMUX_PKG_BUILDER_DIR/*.patch; do
-				echo "[INFO]: Reverting $(basename "$f")"
-				(sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" "$f" | patch -f --silent -R -p1 -d "$TERMUX_PKG_SRCDIR") || true
-			done
-			shopt -u nullglob
-			python $TERMUX_SCRIPTDIR/common-files/apply-chromium-patches.py --electron -C "$TERMUX_PKG_SRCDIR" -R -v $_CHROMIUM_VERSION || bash
-			return
-		fi
-	fi
-
 	# Fetch depot_tools
 	__tur_setup_depot_tools
 
@@ -51,7 +33,7 @@ termux_step_get_source() {
 	mkdir -p "$TERMUX_PKG_CACHEDIR/tmp-checkout"
 	pushd "$TERMUX_PKG_CACHEDIR/tmp-checkout"
 	gclient config --name "src/electron" --unmanaged https://github.com/electron/electron
-	gclient sync --with_branch_heads --with_tags --no-history --revision v$TERMUX_PKG_VERSION || bash
+	gclient sync --with_branch_heads --with_tags --no-history --revision v$TERMUX_PKG_VERSION
 	popd
 
 	# Solve error like `.git/packed-refs is dirty`
@@ -60,18 +42,39 @@ termux_step_get_source() {
 	cd electron
 	git pack-refs --all
 
-	echo "$TERMUX_PKG_VERSION" > "$TERMUX_PKG_CACHEDIR/.electron-source-fetched"
 	ln -sfr $TERMUX_PKG_CACHEDIR/tmp-checkout/src $TERMUX_PKG_SRCDIR
 }
 
 termux_step_post_get_source() {
+	# Apply patches related to chromium
+	local f
+	for f in $(find "$TERMUX_PKG_BUILDER_DIR/cr-patches" -maxdepth 1 -type f -name *.patch | sort); do
+		echo "Applying patch: $(basename $f)"
+		patch --silent -p1 < "$f"
+	done
+
+	# Apply patches related to electron
+	local f
+	for f in $(find "$TERMUX_PKG_BUILDER_DIR/electron-patches" -maxdepth 1 -type f -name *.patch | sort); do
+		echo "Applying patch: $(basename $f)"
+		patch --silent -p1 < "$f"
+	done
+
+	# Install version file
 	echo "$TERMUX_PKG_VERSION" > $TERMUX_PKG_SRCDIR/electron/ELECTRON_VERSION
+}
+
+termux_step_pre_configure() {
+	# Certain packages are not safe to build on device because their
+	# build.sh script deletes specific files in $TERMUX_PREFIX.
+	if $TERMUX_ON_DEVICE_BUILD; then
+		termux_error_exit "Package '$TERMUX_PKG_NAME' is not safe for on-device builds."
+	fi
 }
 
 termux_step_configure() {
 	cd $TERMUX_PKG_SRCDIR
 	termux_setup_ninja
-	termux_setup_nodejs
 	__tur_setup_depot_tools
 
 	# Remove termux's dummy pkg-config
@@ -81,12 +84,6 @@ termux_step_configure() {
 	mkdir -p $TERMUX_PKG_CACHEDIR/host-pkg-config-bin
 	ln -s $_host_pkg_config $TERMUX_PKG_CACHEDIR/host-pkg-config-bin/pkg-config
 	export PATH="$TERMUX_PKG_CACHEDIR/host-pkg-config-bin:$PATH"
-
-	# Install deps
-	env -i PATH="$PATH" sudo apt update
-	env -i PATH="$PATH" sudo apt install lsb-release -yq
-	env -i PATH="$PATH" sudo apt install libfontconfig1 libfontconfig1:i386 -yq
-	env -i PATH="$PATH" sudo ./build/install-build-deps.sh --lib32 --no-syms --no-android --no-arm --no-chromeos-fonts --no-nacl --no-prompt
 
 	# Setup rust toolchain and clang toolchain
 	./tools/rust/update_rust.py
@@ -105,9 +102,12 @@ termux_step_configure() {
 		CARGO_TARGET_NAME="armv7-linux-androideabi"
 	fi
 
-	# Link to system tools required by the build
-	mkdir -p third_party/node/linux/node-linux-x64/bin
-	ln -sf $(command -v node) third_party/node/linux/node-linux-x64/bin/
+	# Install nodejs
+	if [ ! -f "third_party/node/linux/node-linux-x64/bin/node" ]; then
+		./third_party/node/update_node_binaries
+	fi
+	termux_setup_nodejs
+	./third_party/node/update_npm_deps
 
 	# Dummy librt.so
 	# Why not dummy a librt.a? Some of the binaries reference symbols only exists in Android
@@ -151,14 +151,20 @@ termux_step_configure() {
 	local _host_cc="$_clang_base_path/bin/clang"
 	local _host_cxx="$_clang_base_path/bin/clang++"
 	local _host_clang_version=$($_host_cc --version | grep -m1 version | sed -E 's|.*\bclang version ([0-9]+).*|\1|')
+	local _target_clang_base_path="$TERMUX_STANDALONE_TOOLCHAIN"
+	local _target_cc="$_target_clang_base_path/bin/clang"
+	local _target_clang_version=$($_target_cc --version | grep -m1 version | sed -E 's|.*\bclang version ([0-9]+).*|\1|')
 	local _target_cpu _target_sysroot="$TERMUX_PKG_CACHEDIR/sysroot-$TERMUX_ARCH"
 	local _v8_toolchain_name _v8_current_cpu _v8_sysroot_path
 	if [ "$TERMUX_ARCH" = "aarch64" ]; then
 		_target_cpu="arm64"
-		_v8_current_cpu="x64"
+		_v8_current_cpu="arm64"
 		_v8_sysroot_path="$_amd64_sysroot_path"
-		_v8_toolchain_name="clang_x64_v8_arm64"
+		_v8_toolchain_name="host"
 	elif [ "$TERMUX_ARCH" = "arm" ]; then
+		# Install i386 rootfs and deps
+		build/linux/sysroot_scripts/install-sysroot.py --arch=i386
+		local _i386_sysroot_path="$(pwd)/build/linux/$(ls build/linux | grep 'i386-sysroot')"
 		_target_cpu="arm"
 		_v8_current_cpu="x86"
 		_v8_sysroot_path="$_i386_sysroot_path"
@@ -167,7 +173,7 @@ termux_step_configure() {
 		_target_cpu="x64"
 		_v8_current_cpu="x64"
 		_v8_sysroot_path="$_amd64_sysroot_path"
-		_v8_toolchain_name="clang_x64"
+		_v8_toolchain_name="host"
 	fi
 
 	local _common_args_file=$TERMUX_PKG_TMPDIR/common-args-file
@@ -186,8 +192,8 @@ target_cpu = \"$_target_cpu\"
 target_rpath = \"$TERMUX_PREFIX/lib\"
 target_sysroot = \"$_target_sysroot\"
 custom_toolchain = \"//build/toolchain/linux/unbundle:default\"
-custom_toolchain_clang_base_path = \"$TERMUX_STANDALONE_TOOLCHAIN\"
-custom_toolchain_clang_version = "18"
+custom_toolchain_clang_base_path = \"$_target_clang_base_path\"
+custom_toolchain_clang_version = \"$_target_clang_version\"
 host_toolchain = \"$TERMUX_PKG_CACHEDIR/custom-toolchain:host\"
 v8_snapshot_toolchain = \"$TERMUX_PKG_CACHEDIR/custom-toolchain:$_v8_toolchain_name\"
 electron_js2c_toolchain = \"$TERMUX_PKG_CACHEDIR/custom-toolchain:$_v8_toolchain_name\"
@@ -199,7 +205,7 @@ treat_warnings_as_errors = false
 use_bundled_fontconfig = false
 use_system_freetype = false
 use_system_libdrm = true
-use_system_libffi = true
+use_system_libffi = false
 use_custom_libcxx = false
 use_custom_libcxx_for_host = true
 use_allocator_shim = false
@@ -219,7 +225,7 @@ use_ozone = true
 ozone_auto_platforms = false
 ozone_platform = \"x11\"
 ozone_platform_x11 = true
-ozone_platform_wayland = true
+ozone_platform_wayland = false
 ozone_platform_headless = true
 angle_enable_vulkan = true
 angle_enable_swiftshader = true
@@ -243,29 +249,32 @@ exclude_unwind_tables = false
 	fi
 
 	# Use custom toolchain
+	rm -rf $TERMUX_PKG_CACHEDIR/custom-toolchain
 	mkdir -p $TERMUX_PKG_CACHEDIR/custom-toolchain
-	cp -f $TERMUX_PKG_BUILDER_DIR/toolchain.gn.in $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
+	cp -f $TERMUX_PKG_BUILDER_DIR/toolchain-template/host-toolchain.gn.in $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
 	sed -i "s|@HOST_CC@|$_host_cc|g
 			s|@HOST_CXX@|$_host_cxx|g
 			s|@HOST_LD@|$_host_cxx|g
 			s|@HOST_AR@|$(command -v llvm-ar)|g
 			s|@HOST_NM@|$(command -v llvm-nm)|g
 			s|@HOST_IS_CLANG@|true|g
-			s|@HOST_USE_GOLD@|false|g
 			s|@HOST_SYSROOT@|$_amd64_sysroot_path|g
+			s|@V8_CURRENT_CPU@|$_target_cpu|g
 			" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
-	sed -i "s|@V8_CC@|$_host_cc|g
-			s|@V8_CXX@|$_host_cxx|g
-			s|@V8_LD@|$_host_cxx|g
-			s|@V8_AR@|$(command -v llvm-ar)|g
-			s|@V8_NM@|$(command -v llvm-nm)|g
-			s|@V8_TOOLCHAIN_NAME@|$_v8_toolchain_name|g
-			s|@V8_CURRENT_CPU@|$_v8_current_cpu|g
-			s|@V8_V8_CURRENT_CPU@|$_target_cpu|g
-			s|@V8_IS_CLANG@|true|g
-			s|@V8_USE_GOLD@|false|g
-			s|@V8_SYSROOT@|$_v8_sysroot_path|g
-			" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
+	if [ "$_v8_toolchain_name" != "host" ]; then
+		cat $TERMUX_PKG_BUILDER_DIR/toolchain-template/v8-toolchain.gn.in >> $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
+		sed -i "s|@V8_CC@|$_host_cc|g
+				s|@V8_CXX@|$_host_cxx|g
+				s|@V8_LD@|$_host_cxx|g
+				s|@V8_AR@|$(command -v llvm-ar)|g
+				s|@V8_NM@|$(command -v llvm-nm)|g
+				s|@V8_TOOLCHAIN_NAME@|$_v8_toolchain_name|g
+				s|@V8_CURRENT_CPU@|$_v8_current_cpu|g
+				s|@V8_V8_CURRENT_CPU@|$_target_cpu|g
+				s|@V8_IS_CLANG@|true|g
+				s|@V8_SYSROOT@|$_v8_sysroot_path|g
+				" $TERMUX_PKG_CACHEDIR/custom-toolchain/BUILD.gn
+	fi
 
 	# Generate ninja files
 	mkdir -p $TERMUX_PKG_BUILDDIR/out/Release
@@ -275,6 +284,10 @@ exclude_unwind_tables = false
 
 termux_step_make() {
 	cd $TERMUX_PKG_BUILDDIR
+
+	# Remove this all the time to let `build_electron_definitions` run in every steps
+	rm -f $TERMUX_PKG_BUILDDIR/out/Release/gen/electron/tsc/typings/electron.d.ts
+
 	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron:node_headers electron electron_license chromium_licenses
 	rm -rf "$TERMUX_PKG_CACHEDIR/sysroot-$TERMUX_ARCH"
 }
