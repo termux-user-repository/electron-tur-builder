@@ -284,6 +284,10 @@ exclude_unwind_tables = false
 
 termux_step_make() {
 	cd $TERMUX_PKG_BUILDDIR
+
+	# Remove this all the time to let `build_electron_definitions` run in every steps
+	rm -f $TERMUX_PKG_BUILDDIR/out/Release/gen/electron/tsc/typings/electron.d.ts
+
 	ninja -C $TERMUX_PKG_BUILDDIR/out/Release electron:node_headers electron electron_license chromium_licenses
 	rm -rf "$TERMUX_PKG_CACHEDIR/sysroot-$TERMUX_ARCH"
 }
