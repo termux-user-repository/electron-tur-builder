@@ -11,3 +11,6 @@
 !tur-electron/**
 !tur-electron-2
 !tur-electron-2/**
+!common-files
+!common-files/building-system-patches
+!common-files/building-system-patches/0101-add-tur-electron-repo.patch
