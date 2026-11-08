@@ -362,8 +362,17 @@ jobs:
             echo "No host-tools assets found for ${ver}, skipping."
             continue
           fi
+          # Compose the release notes with checksums.
+          {
+            echo "## Checksums"
+            echo '```'
+            (cd ./host-tools && sha256sum electron-*-host-tools-v${ver}-*.tar.zst | sort -k2 | sed 's/  / /')
+            echo '```'
+          } > ./release-notes.md
+          # Create the release (one tag per version) then upload all arches.
           gh release create "$TAG" $ASSETS --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" --notes "Host tools for electron ${ver}" 2>/dev/null || true
+            --title "$TAG" --notes-file ./release-notes.md 2>/dev/null || true
+          gh release edit "$TAG" --notes-file ./release-notes.md --repo "$GITHUB_REPOSITORY" || true
           gh release upload "$TAG" $ASSETS --repo "$GITHUB_REPOSITORY" --clobber
         done
 
@@ -423,8 +432,17 @@ jobs:
           pushd "$ASSET_DIR"
           sha256sum electron-v*-linux-*.zip | sort -k2 > SHA256SUMS
           popd
+          # Compose the release notes with checksums, like the old releases.
+          {
+            echo "## Checksums"
+            echo '```'
+            sed 's/  / /' "$ASSET_DIR/SHA256SUMS"
+            echo '```'
+          } > ./release-notes.md
+          # Create the release (one tag per version) then upload zips + checksums.
           gh release create "$TAG" "$ASSET_DIR"/* --repo "$GITHUB_REPOSITORY" \
-            --title "Electron ${ver} for Termux" --notes "Electron ${ver}" 2>/dev/null || true
+            --title "Electron ${ver} for Termux" --notes-file ./release-notes.md 2>/dev/null || true
+          gh release edit "$TAG" --notes-file ./release-notes.md --repo "$GITHUB_REPOSITORY" || true
           gh release upload "$TAG" "$ASSET_DIR"/* --repo "$GITHUB_REPOSITORY" --clobber
         done
 
