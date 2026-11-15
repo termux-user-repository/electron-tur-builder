@@ -5,7 +5,7 @@ TERMUX_PKG_MAINTAINER="@licy183"
 _CHROMIUM_VERSION=150.0.7871.250
 TERMUX_PKG_VERSION=43.8.7
 TERMUX_PKG_SRCURL=git+https://github.com/electron/electron
-TERMUX_PKG_DEPENDS="atk, cups, dbus, fontconfig, gtk3, krb5, libc++, libevdev, libxkbcommon, libminizip, libnss, libx11, mesa, openssl, pango, pulseaudio, zlib"
+TERMUX_PKG_DEPENDS="atk, cups, dbus, fontconfig, gtk3, krb5, libc++, libevdev, libxkbcommon, libminizip, libnss, libx11, mesa, openssl, pango, pipewire, pulseaudio, zlib"
 TERMUX_PKG_BUILD_DEPENDS="libnotify, libffi-static"
 # Chromium doesn't support i686 on Linux.
 TERMUX_PKG_EXCLUDED_ARCHES="i686"
