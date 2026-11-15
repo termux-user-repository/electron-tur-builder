@@ -48,8 +48,6 @@ jobs:
     permissions:
       contents: read
       actions: read # needed to download artifacts in the reuse fast path
-    outputs:
-      no-build: ${{ steps.build-info.outputs.no-build }}
     env:
       ANDROID_HOME: "/opt/termux/android-sdk"
       NDK: "/opt/termux/android-ndk"
@@ -102,7 +100,6 @@ jobs:
           if grep -qiP '^\s*%ci:no-build\s*$' <(git log --format="%B" -n 1 --no-merges HEAD); then
             echo "[!] Force skipping as tag '%ci:no-build' was applied to HEAD commit message."
             echo "skip-building=true" >> "$GITHUB_OUTPUT"
-            echo "no-build=true" >> "$GITHUB_OUTPUT"
           fi
 
           for repo_path in $(jq --raw-output 'keys | .[]' repo.json); do
@@ -315,14 +312,6 @@ jobs:
         path: ./artifacts/electron-v*.zip
         if-no-files-found: warn
 
-    - name: Upload to temporary release for tur apt repo
-      if: ${{ github.event_name != 'pull_request' && steps.build-info.outputs.no-build != 'true' }}
-      run: |
-        for i in ./artifacts/debs-*.tar; do
-          gh release upload -R https://github.com/termux-user-repository/tur "0.1" "$i"
-          echo "$i  uploaded"
-        done
-
   upload-host-tools:
     needs: build
     if: ${{ always() && needs.build.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
@@ -454,17 +443,3 @@ jobs:
           gh release edit "$TAG" --notes-file ./release-notes.md --repo "$GITHUB_REPOSITORY" || true
           gh release upload "$TAG" "$ASSET_DIR"/* --repo "$GITHUB_REPOSITORY" --clobber
         done
-
-  trigger:
-    runs-on: ubuntu-26.04
-    if: github.event_name != 'pull_request' && needs.build.outputs.no-build != 'true'
-    needs: build
-    steps:
-    - name: Trigger workflow in dists repository
-      env:
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        EVENT: "from_tur"
-        ORG: "termux-user-repository"
-        REPO: "dists"
-      run: |
-        curl -d "{\"event_type\": \"${EVENT}\"}" -H "Content-Type: application/json" -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.everest-preview+json" "https://api.github.com/repos/${ORG}/${REPO}/dispatches"
